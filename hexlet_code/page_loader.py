@@ -9,9 +9,33 @@ from bs4 import BeautifulSoup
 # todo: использовать дата классы
 
 
-def make_path_by_url(url: str) -> str:
-    if "://" in url:
-        _, url = url.split('://', maxsplit=1)
+DOWNLOADABLE_TAGS_WITH_SRC_ATTRS = {
+    'img': 'src',
+    'link': 'href',
+    'script': 'src',
+}
+
+
+def get_tags_to_download():
+    return DOWNLOADABLE_TAGS_WITH_SRC_ATTRS.keys()
+
+
+def get_source_attr_for_tag(tag: str) -> str | None:
+    return DOWNLOADABLE_TAGS_WITH_SRC_ATTRS.get(tag)
+
+
+def make_path_by_url(url: str, keep_extension: bool = False) -> str:
+    default_suffix = '.html'
+    parsed_url = parse.urlparse(url)
+
+    suffix = ''
+    url_path = parsed_url.path
+    if keep_extension:
+        suffix = Path(url_path).suffix or default_suffix
+        url_path = str(Path(url_path).with_suffix(''))
+
+    url = f'{parsed_url.netloc}{url_path}'
+
     path = ''
     for s in url:
         if s not in string.ascii_letters + string.digits:
@@ -19,7 +43,7 @@ def make_path_by_url(url: str) -> str:
         else:
             path += s
 
-    return path
+    return f'{path}{suffix}'
 
 
 def ensure_absolute_url(url: str, domain_with_scheme: str) -> str:
@@ -51,21 +75,23 @@ def is_local_resource(url: str, domain_with_scheme: str) -> bool:
 def handle_files_in_html(html_text: str, files_directory: str, domain_with_scheme: str) -> tuple[list[dict], str]:
     soup = BeautifulSoup(html_text, 'html.parser')
     result = []
-    for img in soup.find_all('img'):
-        if not is_local_resource(img['src'], domain_with_scheme):
+    for resource in soup.find_all(get_tags_to_download()):
+        src_attr = get_source_attr_for_tag(resource.name)
+        if not src_attr:
             continue
 
-        original_image_url_as_path = ensure_absolute_url(img['src'], domain_with_scheme)
-        without_ext, ext = original_image_url_as_path.rsplit('.', maxsplit=1)
-        # suffix = original_image_url_as_path.suffix
-        downloaded_image_path = str(Path(files_directory) / f'{make_path_by_url(without_ext)}.{ext}')
+        if not is_local_resource(resource[src_attr], domain_with_scheme):
+            continue
+
+        absolute_url = ensure_absolute_url(resource[src_attr], domain_with_scheme)
+        downloaded_path = str(Path(files_directory) / make_path_by_url(absolute_url, keep_extension=True))
 
         result.append({
-            'original_url': img['src'],
-            'downloaded_path': downloaded_image_path,
+            'original_url': resource[src_attr],
+            'downloaded_path': downloaded_path,
         })
 
-        img['src'] = downloaded_image_path
+        resource[src_attr] = downloaded_path
 
     return result, soup.prettify()
 
