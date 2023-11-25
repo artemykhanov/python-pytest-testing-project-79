@@ -22,10 +22,39 @@ def make_path_by_url(url: str) -> str:
     return path
 
 
+def ensure_absolute_url(url: str, domain_with_scheme: str) -> str:
+    parsed_url = parse.urlparse(url)
+    if not parsed_url.netloc:
+        url = f'{domain_with_scheme}{url}'
+    return url
+
+
+def is_local_resource(url: str, domain_with_scheme: str) -> bool:
+    """Определяем, является ли файл на странице локальным ресурсом, то есть расположенном на одном домене со страницей
+
+    >>> is_local_resource('https://ru.hexlet.org/assets/python.png', 'https://ru.hexlet.org')
+    True
+
+    >>> is_local_resource('/assets/python.png', 'https://ru.hexlet.org')
+    True
+
+    >>> is_local_resource('https://cdn2.hexlet.io/assets/error-pages/404', 'https://ru.hexlet.org')
+    False
+    """
+    parsed_url = parse.urlparse(url)
+    parsed_domain = parse.urlparse(domain_with_scheme)
+    if parsed_url.netloc and parsed_url.netloc != parsed_domain.netloc:
+        return False
+    return True
+
+
 def handle_files_in_html(html_text: str, files_directory: str, domain_with_scheme: str) -> tuple[list[dict], str]:
     soup = BeautifulSoup(html_text, 'html.parser')
     result = []
     for img in soup.find_all('img'):
+        if not is_local_resource(img['src'], domain_with_scheme):
+            continue
+
         original_image_url_as_path = ensure_absolute_url(img['src'], domain_with_scheme)
         without_ext, ext = original_image_url_as_path.rsplit('.', maxsplit=1)
         # suffix = original_image_url_as_path.suffix
@@ -39,13 +68,6 @@ def handle_files_in_html(html_text: str, files_directory: str, domain_with_schem
         img['src'] = downloaded_image_path
 
     return result, soup.prettify()
-
-
-def ensure_absolute_url(url: str, domain_with_scheme: str) -> str:
-    parsed_url = parse.urlparse(url)
-    if not parsed_url.netloc:
-        url = f'{domain_with_scheme}{url}'
-    return url
 
 
 def download(url: str, directory: str) -> str:

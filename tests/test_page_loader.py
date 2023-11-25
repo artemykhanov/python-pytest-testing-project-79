@@ -63,4 +63,4 @@ def test_download_html_with_files(tmp_path):
     filepath_2 = str(tmp_path / 'ru-hexlet-io-courses_files/cdn2-hexlet-io-assets-error-pages-404-83b6e8d08445469eb3b4347ac5cfb08d98f3d7ba9a8e4134bf7070b227a42a2a.svg')
 
     assert os.path.exists(filepath)
-    assert os.path.exists(filepath_2)
+    assert not os.path.exists(filepath_2)
